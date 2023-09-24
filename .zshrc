@@ -41,7 +41,3 @@ if [[ -n $SSH_CONNECTION ]]; then
 else
    export EDITOR='nano'
 fi
-
-# fnm
-export PATH="/Users/aamorosi/Library/Application Support/fnm:$PATH"
-eval "`fnm env`"

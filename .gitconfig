@@ -13,3 +13,6 @@
 	autoSetupRemote = true
 [url "git@github.com:"]
   insteadOf = git://github
+[user]
+    name = Andrea Amorosi
+    email = dreamorosi@gmail.com

@@ -51,7 +51,7 @@ if [ "$(whoami)" = "gitpod" ]; then
 elif [ "$(whoami)" = "aamorosi" ]; then
   export PATH="/Users/aamorosi/Library/Application Support/fnm:$PATH"
   eval "`fnm env`"
-elif [ "$(whoami) = "ec2-user" ]; then
+elif [ "$(whoami)" = "ec2-user" ]; then
   export PATH="/home/ec2-user/.local/share/fnm:$PATH"
   eval "`fnm env`"
 fi

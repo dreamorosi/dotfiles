@@ -41,3 +41,17 @@ if [[ -n $SSH_CONNECTION ]]; then
 else
    export EDITOR='nano'
 fi
+
+if [ "$(whoami)" = "gitpod" ]; then
+  # fnm
+  export PATH="/home/gitpod/.local/share/fnm:$PATH"
+  eval "`fnm env`"
+  # Gitpod scripts
+  for i in $(ls -A $HOME/.bashrc.d/); do source $HOME/.bashrc.d/$i; done
+elif [ "$(whoami)" = "aamorosi" ]; then
+  export PATH="/Users/aamorosi/Library/Application Support/fnm:$PATH"
+  eval "`fnm env`"
+elif [ "$(whoami) = "ec2-user" ]; then
+  export PATH="/home/ec2-user/.local/share/fnm:$PATH"
+  eval "`fnm env`"
+fi

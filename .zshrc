@@ -42,10 +42,32 @@ else
    export EDITOR='nano'
 fi
 
-if [ "$(whoami)" = "aamorosi" ]; then
-  export PATH="/Users/aamorosi/Library/Application Support/fnm:$PATH"
-  eval "`fnm env`"
-elif [ "$(whoami)" = "ec2-user" ]; then
-  export PATH="/home/ec2-user/.local/share/fnm:$PATH"
-  eval "`fnm env`"
+# CDK Docker - use finch on macOS
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  export CDK_DOCKER=finch
 fi
+
+# fnm (Node version manager)
+case "$(whoami)" in
+  andre)
+    export PATH="/Users/andre/Library/Application Support/fnm:$PATH"
+    ;;
+  aamorosi)
+    export PATH="/Users/aamorosi/Library/Application Support/fnm:$PATH"
+    ;;
+  ubuntu)
+    export PATH="$HOME/.local/share/fnm:$PATH"
+    ;;
+  ec2-user)
+    export PATH="/home/ec2-user/.local/share/fnm:$PATH"
+    ;;
+esac
+if command -v fnm &>/dev/null; then
+  eval "$(fnm env)"
+fi
+
+# Local binaries
+export PATH="$HOME/.local/bin:$PATH"
+
+# OpenCode
+export PATH="$HOME/.opencode/bin:$PATH"

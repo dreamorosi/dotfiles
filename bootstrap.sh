@@ -134,6 +134,27 @@ setup_zsh() {
     else
         info "pure prompt already installed, skipping..."
     fi
+
+    # Set zsh as default shell on Linux
+    if [[ "$OS" == "linux" ]]; then
+        local current_shell
+        current_shell=$(getent passwd "$USER" | cut -d: -f7)
+        local zsh_path
+        zsh_path=$(which zsh)
+        
+        if [[ "$current_shell" != "$zsh_path" ]]; then
+            info "Setting zsh as default shell..."
+            if has_command chsh; then
+                chsh -s "$zsh_path" || {
+                    warn "Failed to change shell. You may need to run manually:"
+                    echo "  chsh -s $zsh_path"
+                }
+            else
+                warn "chsh not available. Add zsh to /etc/shells and run:"
+                echo "  chsh -s $zsh_path"
+            fi
+        fi
+    fi
 }
 
 setup_fnm() {
@@ -202,6 +223,79 @@ setup_gh() {
         esac
     else
         info "GitHub CLI already installed, skipping..."
+    fi
+}
+
+setup_container_runtime() {
+    if [[ "$OS" == "macos" ]]; then
+        # Install Finch on macOS
+        if ! has_command finch; then
+            info "Installing Finch (container runtime for macOS)..."
+            brew install --cask finch
+            info "Initializing Finch VM..."
+            finch vm init || true
+        else
+            info "Finch already installed, skipping..."
+        fi
+    else
+        # Install Docker in rootless mode on Linux
+        if ! has_command docker; then
+            info "Installing Docker in rootless mode..."
+            
+            # Install dependencies
+            case "$PKG_MANAGER" in
+                apt)
+                    sudo apt-get update
+                    sudo apt-get install -y uidmap dbus-user-session fuse-overlayfs slirp4netns
+                    ;;
+                dnf)
+                    sudo dnf install -y shadow-utils fuse-overlayfs slirp4netns
+                    ;;
+                yum)
+                    sudo yum install -y shadow-utils fuse-overlayfs slirp4netns
+                    ;;
+                pacman)
+                    sudo pacman -S --noconfirm fuse-overlayfs slirp4netns
+                    ;;
+            esac
+            
+            # Install Docker using official script
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sh get-docker.sh
+            rm get-docker.sh
+            
+            # Setup rootless mode
+            info "Setting up Docker rootless mode..."
+            dockerd-rootless-setuptool.sh install || {
+                warn "Rootless setup failed. You may need to run manually:"
+                echo "  dockerd-rootless-setuptool.sh install"
+            }
+            
+            # Add to systemd user services
+            systemctl --user start docker || true
+            systemctl --user enable docker || true
+            
+            info "Docker rootless mode configured"
+            warn "You may need to log out and back in for changes to take effect"
+        else
+            info "Docker already installed, skipping..."
+            # Check if running rootless
+            if docker info 2>/dev/null | grep -q "rootless"; then
+                info "Docker is running in rootless mode"
+            else
+                warn "Docker is installed but NOT in rootless mode"
+                warn "Consider reinstalling with rootless mode for security"
+            fi
+        fi
+    fi
+}
+
+setup_opencode() {
+    if ! has_command opencode; then
+        info "Installing OpenCode..."
+        curl -fsSL https://opencode.ai/install | bash
+    else
+        info "OpenCode already installed, skipping..."
     fi
 }
 
@@ -303,6 +397,8 @@ main() {
     setup_fnm
     setup_neovim
     setup_gh
+    setup_container_runtime
+    setup_opencode
 
     # Symlink dotfiles
     symlink_dotfiles
@@ -318,8 +414,12 @@ main() {
     echo "  3. Run 'fnm install --lts' to install Node.js"
     echo "  4. Open nvim and let lazy.nvim install plugins"
     
+    if [[ "$OS" == "macos" ]]; then
+        echo "  5. Start Finch VM: finch vm start"
+    fi
+    
     if [[ -z "${WAKATIME_API_KEY:-}" ]]; then
-        echo "  5. Set up WakaTime: edit ~/.wakatime.cfg with your API key"
+        echo "  6. Set up WakaTime: edit ~/.wakatime.cfg with your API key"
     fi
 }
 

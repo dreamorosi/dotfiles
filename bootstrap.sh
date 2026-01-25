@@ -2,49 +2,325 @@
 
 set -e
 
-# Create Wakatime config
-printf "\n[settings]\napi_key = $WAKATIME_API_KEY\n" > ~/.wakatime.cfg
+# =============================================================================
+# Dotfiles Bootstrap Script
+# Cross-platform setup for macOS and Linux
+# =============================================================================
 
-# Install oh-my-zsh
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No Color
 
-# Install fnm
-curl -fsSL https://fnm.vercel.app/install | zsh
+info() { printf "${GREEN}[INFO]${NC} %s\n" "$1"; }
+warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$1"; }
+error() { printf "${RED}[ERROR]${NC} %s\n" "$1"; exit 1; }
 
-# Install pure prompt
-mkdir -p "$HOME/.zsh"
-git clone https://github.com/sindresorhus/pure.git "$HOME/.zsh/pure"
+# Detect OS
+detect_os() {
+    case "$(uname -s)" in
+        Darwin*) OS="macos" ;;
+        Linux*)  OS="linux" ;;
+        *)       error "Unsupported OS: $(uname -s)" ;;
+    esac
+    info "Detected OS: $OS"
+}
 
-# Symlink files
-current_dir="$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
-dotfiles_source="${current_dir}"
-deny_list=("debug.sh" "bootstrap.sh" ".git/")
-
-while read -r file; do
-    # Check if the file is in the deny list
-    skip_file=false
-    for item in "${deny_list[@]}"; do
-        if [[ -d "${item}" && "${file}" == "${dotfiles_source}/${item}/"* ]] || [[ "${file}" == "${dotfiles_source}/${item}"* ]]; then
-            printf 'Skipping file %s\n' "${file}"
-            skip_file=true
-            break
+# Detect package manager
+detect_package_manager() {
+    if [[ "$OS" == "macos" ]]; then
+        if command -v brew &>/dev/null; then
+            PKG_MANAGER="brew"
+        else
+            warn "Homebrew not found. Installing..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            PKG_MANAGER="brew"
         fi
-    done
+    elif [[ "$OS" == "linux" ]]; then
+        if command -v apt-get &>/dev/null; then
+            PKG_MANAGER="apt"
+        elif command -v dnf &>/dev/null; then
+            PKG_MANAGER="dnf"
+        elif command -v yum &>/dev/null; then
+            PKG_MANAGER="yum"
+        elif command -v pacman &>/dev/null; then
+            PKG_MANAGER="pacman"
+        else
+            error "No supported package manager found (apt, dnf, yum, pacman)"
+        fi
+    fi
+    info "Using package manager: $PKG_MANAGER"
+}
 
-    if [ "${skip_file}" = true ]; then
-        continue
+# Install a package cross-platform
+install_package() {
+    local pkg="$1"
+    info "Installing $pkg..."
+    case "$PKG_MANAGER" in
+        brew)   brew install "$pkg" ;;
+        apt)    sudo apt-get install -y "$pkg" ;;
+        dnf)    sudo dnf install -y "$pkg" ;;
+        yum)    sudo yum install -y "$pkg" ;;
+        pacman) sudo pacman -S --noconfirm "$pkg" ;;
+    esac
+}
+
+# Check if command exists
+has_command() {
+    command -v "$1" &>/dev/null
+}
+
+# =============================================================================
+# Secrets Check
+# =============================================================================
+
+check_secrets() {
+    local dotfiles_source
+    dotfiles_source="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local secrets_template="$dotfiles_source/secrets.template"
+    local secrets_env="$dotfiles_source/secrets.env"
+
+    # Check if any secrets are set
+    if [[ -z "${WAKATIME_API_KEY:-}" ]] && [[ -z "${OPENCODE_BEDROCK_API_KEY:-}" ]]; then
+        warn "No secrets found in environment!"
+        echo ""
+        echo "To configure secrets:"
+        echo "  1. Copy the template:  cp secrets.template secrets.env"
+        echo "  2. Edit with your keys: \$EDITOR secrets.env"
+        echo "  3. Source and rerun:   source secrets.env && ./bootstrap.sh"
+        echo ""
+        
+        # Check if secrets.env exists but wasn't sourced
+        if [[ -f "$secrets_env" ]]; then
+            warn "secrets.env exists but wasn't sourced!"
+            echo "  Run: source secrets.env && ./bootstrap.sh"
+        elif [[ -f "$secrets_template" ]]; then
+            echo "  Or run without secrets (you can configure them later)"
+        fi
+        
+        echo ""
+        read -p "Continue without secrets? [y/N] " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            info "Exiting. Run again after sourcing secrets.env"
+            exit 0
+        fi
+    fi
+}
+
+# =============================================================================
+# Setup Functions
+# =============================================================================
+
+setup_zsh() {
+    if ! has_command zsh; then
+        install_package zsh
     fi
 
-    # If not, we symlink it
-    relative_file_path="${file#"${dotfiles_source}"/}"
-    target_file="${HOME}/${relative_file_path}"
-    target_dir="${target_file%/*}"
-
-    if test ! -d "${target_dir}"; then
-        mkdir -p "${target_dir}"
+    # Install oh-my-zsh if not present
+    if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+        info "Installing oh-my-zsh..."
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    else
+        info "oh-my-zsh already installed, skipping..."
     fi
 
-    printf 'Installing dotfiles symlink %s\n' "${target_file}"
-    ln -sf "${file}" "${target_file}"
+    # Install pure prompt
+    if [[ ! -d "$HOME/.zsh/pure" ]]; then
+        info "Installing pure prompt..."
+        mkdir -p "$HOME/.zsh"
+        git clone https://github.com/sindresorhus/pure.git "$HOME/.zsh/pure"
+    else
+        info "pure prompt already installed, skipping..."
+    fi
+}
 
-done < <(find "${dotfiles_source}" -type f)
+setup_fnm() {
+    if ! has_command fnm; then
+        info "Installing fnm..."
+        curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
+    else
+        info "fnm already installed, skipping..."
+    fi
+}
+
+setup_neovim() {
+    if ! has_command nvim; then
+        info "Installing neovim..."
+        case "$PKG_MANAGER" in
+            brew)   brew install neovim ;;
+            apt)    
+                # Use latest stable from PPA on Ubuntu/Debian
+                if has_command add-apt-repository; then
+                    sudo add-apt-repository -y ppa:neovim-ppa/stable
+                    sudo apt-get update
+                fi
+                sudo apt-get install -y neovim
+                ;;
+            dnf)    sudo dnf install -y neovim ;;
+            yum)
+                # Amazon Linux - install from EPEL or download AppImage
+                if ! yum list installed epel-release &>/dev/null; then
+                    sudo yum install -y epel-release || true
+                fi
+                if yum list available neovim &>/dev/null; then
+                    sudo yum install -y neovim
+                else
+                    warn "Neovim not in yum repos, installing via AppImage..."
+                    curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
+                    chmod u+x nvim.appimage
+                    sudo mv nvim.appimage /usr/local/bin/nvim
+                fi
+                ;;
+            pacman) sudo pacman -S --noconfirm neovim ;;
+        esac
+    else
+        info "neovim already installed, skipping..."
+    fi
+}
+
+setup_gh() {
+    if ! has_command gh; then
+        info "Installing GitHub CLI..."
+        case "$PKG_MANAGER" in
+            brew)   brew install gh ;;
+            apt)
+                curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+                echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+                sudo apt-get update
+                sudo apt-get install -y gh
+                ;;
+            dnf)    sudo dnf install -y gh ;;
+            yum)
+                # Amazon Linux
+                sudo yum install -y yum-utils || true
+                sudo yum-config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+                sudo yum install -y gh
+                ;;
+            pacman) sudo pacman -S --noconfirm github-cli ;;
+        esac
+    else
+        info "GitHub CLI already installed, skipping..."
+    fi
+}
+
+setup_wakatime() {
+    if [[ -n "${WAKATIME_API_KEY:-}" ]]; then
+        info "Configuring WakaTime..."
+        printf "[settings]\napi_key = %s\n" "$WAKATIME_API_KEY" > ~/.wakatime.cfg
+    else
+        warn "WAKATIME_API_KEY not set, skipping WakaTime config"
+        warn "Set it later in ~/.wakatime.cfg"
+    fi
+}
+
+setup_opencode_secrets() {
+    local config_file="$HOME/.config/opencode/opencode.json"
+    if [[ -n "${OPENCODE_BEDROCK_API_KEY:-}" ]] && [[ -f "$config_file" ]]; then
+        info "Configuring OpenCode Bedrock API key..."
+        # Use a temp file for sed compatibility across platforms
+        if [[ "$OS" == "macos" ]]; then
+            sed -i '' "s|\"apiKey\": \"\"|\"apiKey\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
+        else
+            sed -i "s|\"apiKey\": \"\"|\"apiKey\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
+        fi
+    else
+        warn "OPENCODE_BEDROCK_API_KEY not set or config missing, skipping..."
+    fi
+}
+
+# =============================================================================
+# Symlink Dotfiles
+# =============================================================================
+
+symlink_dotfiles() {
+    info "Symlinking dotfiles..."
+    
+    local dotfiles_source
+    dotfiles_source="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    
+    # Files/dirs to skip
+    local -a deny_list=(
+        "bootstrap.sh"
+        "secrets.template"
+        "secrets.env"
+        "README.md"
+        "LICENSE"
+        ".git"
+        ".gitignore"
+    )
+
+    while IFS= read -r file; do
+        local skip=false
+        local relative_path="${file#"$dotfiles_source"/}"
+        
+        # Check deny list
+        for item in "${deny_list[@]}"; do
+            if [[ "$relative_path" == "$item" ]] || [[ "$relative_path" == "$item/"* ]]; then
+                skip=true
+                break
+            fi
+        done
+
+        if [[ "$skip" == true ]]; then
+            continue
+        fi
+
+        local target="$HOME/$relative_path"
+        local target_dir="${target%/*}"
+
+        # Create parent directory if needed
+        if [[ ! -d "$target_dir" ]]; then
+            mkdir -p "$target_dir"
+        fi
+
+        # Backup existing file if it's not a symlink
+        if [[ -f "$target" ]] && [[ ! -L "$target" ]]; then
+            warn "Backing up existing $target to ${target}.backup"
+            mv "$target" "${target}.backup"
+        fi
+
+        info "Linking: $relative_path"
+        ln -sf "$file" "$target"
+
+    done < <(find "$dotfiles_source" -type f -not -path "*/.git/*")
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+main() {
+    info "Starting dotfiles bootstrap..."
+    
+    detect_os
+    detect_package_manager
+    check_secrets
+
+    # Install dependencies
+    setup_zsh
+    setup_fnm
+    setup_neovim
+    setup_gh
+
+    # Symlink dotfiles
+    symlink_dotfiles
+
+    # Setup secrets (run after symlinks so config files exist)
+    setup_wakatime
+    setup_opencode_secrets
+
+    info "Bootstrap complete!"
+    warn "Remember to:"
+    echo "  1. Restart your shell or run: source ~/.zshrc"
+    echo "  2. Run 'gh auth login' to authenticate GitHub CLI"
+    echo "  3. Run 'fnm install --lts' to install Node.js"
+    echo "  4. Open nvim and let lazy.nvim install plugins"
+    
+    if [[ -z "${WAKATIME_API_KEY:-}" ]]; then
+        echo "  5. Set up WakaTime: edit ~/.wakatime.cfg with your API key"
+    fi
+}
+
+main "$@"

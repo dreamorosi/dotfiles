@@ -424,6 +424,15 @@ symlink_dotfiles() {
             continue
         fi
 
+        # OS-specific fragments: *.macos.conf only on macOS, *.linux.conf only
+        # on Linux. Lets us scope hosts (e.g. home-network services) per OS.
+        if [[ "$relative_path" == *.macos.conf && "$OS" != "macos" ]]; then
+            continue
+        fi
+        if [[ "$relative_path" == *.linux.conf && "$OS" != "linux" ]]; then
+            continue
+        fi
+
         local target="$HOME/$relative_path"
         local target_dir="${target%/*}"
 

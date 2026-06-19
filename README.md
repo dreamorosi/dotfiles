@@ -61,7 +61,8 @@ If you skip secrets during bootstrap, you can configure them later:
 │   └── opencode/       # OpenCode config + skills
 ├── .ssh/
 │   ├── config.d/
-│   │   └── 00-dotfiles.conf  # Portable SSH hosts (github.com, etc.)
+│   │   ├── 00-dotfiles.conf  # Portable SSH hosts (github.com, etc.)
+│   │   └── 10-home.macos.conf # macOS-only hosts (linked only on macOS)
 │   └── allowed_signers       # Public keys trusted for SSH commit signing
 ├── .gitconfig          # Git config with aliases + SSH commit signing
 ├── .zshrc              # Zsh config
@@ -78,6 +79,10 @@ machine- or corporate-managed config (e.g. Amazon WSSH writes into
 - **`.ssh/config.d/00-dotfiles.conf`** (tracked) — portable hosts shared across
   all machines, including the `github.com` signing/auth key. Symlinked into
   `~/.ssh/config.d/`.
+- **`.ssh/config.d/10-home.macos.conf`** (tracked, macOS only) — hosts that
+  should only exist on macOS machines (e.g. `rpi-pw.local`, a home-network
+  service). `bootstrap.sh` only symlinks `*.macos.conf` fragments on macOS (and
+  `*.linux.conf` fragments on Linux).
 - **`~/.ssh/config.d/99-local.conf`** (NOT tracked) — put machine-specific or
   corporate hosts here, or leave them in `~/.ssh/config` below the `Include`.
 

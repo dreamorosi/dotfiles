@@ -43,11 +43,16 @@ The following secrets can be configured in `secrets.env`:
 | Variable | Description |
 |----------|-------------|
 | `WAKATIME_API_KEY` | [WakaTime](https://wakatime.com/settings/api-key) API key |
-| `OPENCODE_BEDROCK_API_KEY` | AWS Bedrock API key for OpenCode |
+| `OPENCODE_BEDROCK_API_KEY` | AWS Bedrock API key (used by both OpenCode and Claude Code) |
 
 If you skip secrets during bootstrap, you can configure them later:
 - WakaTime: Edit `~/.wakatime.cfg`
-- OpenCode: Edit `~/.config/opencode/opencode.json`
+- OpenCode: Edit `~/.config/opencode/opencode.json` (`provider.amazon-bedrock.options.apiKey`)
+- Claude Code: Edit `~/.claude/settings.json` (`env.AWS_BEARER_TOKEN_BEDROCK`)
+
+> The committed config files keep these fields empty; `bootstrap.sh` injects the
+> Bedrock key from `OPENCODE_BEDROCK_API_KEY`. Runtime/session state
+> (`~/.claude.json`, `~/.claude/sessions/`, caches, etc.) is git-ignored.
 
 ## Structure
 
@@ -56,6 +61,8 @@ If you skip secrets during bootstrap, you can configure them later:
 ├── .aws/
 │   ├── config          # AWS CLI profiles
 │   └── credentials     # Placeholder (prevents accidental long-lived keys)
+├── .claude/
+│   └── settings.json   # Claude Code settings (Bedrock token injected)
 ├── .config/
 │   ├── nvim/           # Neovim + LazyVim config
 │   └── opencode/       # OpenCode config + skills

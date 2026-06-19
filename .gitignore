@@ -3,3 +3,16 @@ secrets.env
 
 # OS files
 .DS_Store
+
+# Claude Code: only settings.json is tracked; everything else is runtime
+# state, sessions, caches, or contains machine-specific data / secrets.
+.claude/*
+!.claude/settings.json
+.claude.json
+.claude.json.backup
+
+# OpenCode: local package install artifacts (see .config/opencode/.gitignore)
+.config/opencode/node_modules/
+.config/opencode/package.json
+.config/opencode/package-lock.json
+.config/opencode/bun.lock

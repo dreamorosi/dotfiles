@@ -313,7 +313,14 @@ setup_opencode_secrets() {
     local config_file="$HOME/.config/opencode/opencode.json"
     if [[ -n "${OPENCODE_BEDROCK_API_KEY:-}" ]] && [[ -f "$config_file" ]]; then
         info "Configuring OpenCode Bedrock API key..."
-        # Use a temp file for sed compatibility across platforms
+        # If the file is a symlink into the dotfiles repo, replace it with a
+        # real copy first so the injected secret never lands in the repo.
+        if [[ -L "$config_file" ]]; then
+            local real
+            real="$(cat "$config_file")"
+            rm "$config_file"
+            printf '%s' "$real" > "$config_file"
+        fi
         if [[ "$OS" == "macos" ]]; then
             sed -i '' "s|\"apiKey\": \"\"|\"apiKey\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
         else
@@ -321,6 +328,30 @@ setup_opencode_secrets() {
         fi
     else
         warn "OPENCODE_BEDROCK_API_KEY not set or config missing, skipping..."
+    fi
+}
+
+setup_claude_secrets() {
+    # Claude Code reads the Bedrock token from settings.json env. We keep the
+    # token out of the repo (committed value is ""), reusing the same secret
+    # as OpenCode (OPENCODE_BEDROCK_API_KEY).
+    local config_file="$HOME/.claude/settings.json"
+    if [[ -n "${OPENCODE_BEDROCK_API_KEY:-}" ]] && [[ -f "$config_file" ]]; then
+        info "Configuring Claude Code Bedrock token..."
+        # Break the symlink into the repo before injecting the secret.
+        if [[ -L "$config_file" ]]; then
+            local real
+            real="$(cat "$config_file")"
+            rm "$config_file"
+            printf '%s' "$real" > "$config_file"
+        fi
+        if [[ "$OS" == "macos" ]]; then
+            sed -i '' "s|\"AWS_BEARER_TOKEN_BEDROCK\": \"\"|\"AWS_BEARER_TOKEN_BEDROCK\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
+        else
+            sed -i "s|\"AWS_BEARER_TOKEN_BEDROCK\": \"\"|\"AWS_BEARER_TOKEN_BEDROCK\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
+        fi
+    else
+        warn "OPENCODE_BEDROCK_API_KEY not set or Claude settings missing, skipping..."
     fi
 }
 
@@ -478,6 +509,7 @@ main() {
     # Setup secrets (run after symlinks so config files exist)
     setup_wakatime
     setup_opencode_secrets
+    setup_claude_secrets
 
     # Setup commit signing (run after symlinks so .gitconfig is in place)
     setup_signing

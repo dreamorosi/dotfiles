@@ -5,6 +5,7 @@
 # --- Formulae ---
 brew "awscli"
 brew "fnm"        # Node version manager
+brew "fzf"        # fuzzy finder (used by Neovim fzf-lua picker)
 brew "gh"         # GitHub CLI
 brew "git"
 brew "neovim"     # editor (LazyVim config in .config/nvim)

@@ -324,6 +324,32 @@ setup_opencode_secrets() {
     fi
 }
 
+setup_signing() {
+    # Git commit signing uses the SSH key at ~/.ssh/github (see .gitconfig
+    # and .ssh/config). The public key + allowed_signers are needed for
+    # signing and local verification.
+    local priv="$HOME/.ssh/github"
+    local pub="$HOME/.ssh/github.pub"
+
+    if [[ ! -f "$priv" ]]; then
+        warn "SSH signing key $priv not found, skipping signing setup"
+        warn "Add your GitHub SSH key to $priv, then re-run, or generate one with:"
+        echo "  ssh-keygen -t ed25519 -C \"dreamorosi@gmail.com\" -f $priv"
+        return
+    fi
+
+    # Derive the public key from the private key if it's missing
+    if [[ ! -f "$pub" ]]; then
+        info "Deriving $pub from private key..."
+        ssh-keygen -y -f "$priv" > "$pub"
+        chmod 644 "$pub"
+    fi
+
+    info "Commit signing configured (key: $pub)"
+    warn "Remember to add this key to GitHub as a SIGNING key for the Verified badge:"
+    echo "  https://github.com/settings/ssh/new (Key type: Signing Key)"
+}
+
 # =============================================================================
 # Symlink Dotfiles
 # =============================================================================
@@ -406,6 +432,9 @@ main() {
     # Setup secrets (run after symlinks so config files exist)
     setup_wakatime
     setup_opencode_secrets
+
+    # Setup commit signing (run after symlinks so .gitconfig is in place)
+    setup_signing
 
     info "Bootstrap complete!"
     warn "Remember to:"

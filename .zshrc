@@ -49,21 +49,20 @@ fi
 
 # fnm (Node version manager)
 case "$(whoami)" in
-  andre)
-    export PATH="/Users/andre/Library/Application Support/fnm:$PATH"
+  andre|aamorosi)
+    # macOS: fnm installed via Homebrew
+    FNM_PATH="/opt/homebrew/opt/fnm/bin"
     ;;
-  aamorosi)
-    export PATH="/Users/aamorosi/Library/Application Support/fnm:$PATH"
-    ;;
-  ubuntu)
-    export PATH="$HOME/.local/share/fnm:$PATH"
-    ;;
-  ec2-user)
-    export PATH="/home/ec2-user/.local/share/fnm:$PATH"
+  ubuntu|ec2-user)
+    # Linux: fnm installed to ~/.local/share
+    FNM_PATH="$HOME/.local/share/fnm"
     ;;
 esac
+if [ -n "$FNM_PATH" ] && [ -d "$FNM_PATH" ]; then
+  export PATH="$FNM_PATH:$PATH"
+fi
 if command -v fnm &>/dev/null; then
-  eval "$(fnm env)"
+  eval "$(fnm env --shell zsh)"
 fi
 
 # Local binaries
@@ -71,3 +70,14 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # OpenCode
 export PATH="$HOME/.opencode/bin:$PATH"
+export OPENCODE_ENABLE_EXA=true
+export OPENCODE_ENABLE_PARALLEL=true
+export OPENCODE_EXPERIMENTAL_WORKSPACES=true
+export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+export OPENCODE_EXPERIMENTAL_LSP_TOOL=true
+
+# Telemetry off
+export HOMEBREW_NO_ANALYTICS=1
+export SAM_CLI_TELEMETRY=0
+export DO_NOT_TRACK=1
+export CDK_DISABLE_CLI_TELEMETRY=true

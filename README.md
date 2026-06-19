@@ -32,6 +32,9 @@ After bootstrap completes:
 2. Authenticate GitHub CLI: `gh auth login`
 3. Install Node.js: `fnm install --lts`
 4. Open `nvim` to let lazy.nvim install plugins
+5. Add your SSH key to GitHub as a **Signing Key** (for the "Verified" badge on
+   commits): <https://github.com/settings/ssh/new> (Key type: *Signing Key*).
+   Commits are signed with `~/.ssh/github` via SSH signing.
 
 ## Secrets
 
@@ -57,8 +60,9 @@ If you skip secrets during bootstrap, you can configure them later:
 │   ├── nvim/           # Neovim + LazyVim config
 │   └── opencode/       # OpenCode config + skills
 ├── .ssh/
-│   └── config          # SSH host aliases
-├── .gitconfig          # Git config with aliases
+│   ├── config          # SSH host aliases
+│   └── allowed_signers # Public keys trusted for SSH commit signing
+├── .gitconfig          # Git config with aliases + SSH commit signing
 ├── .zshrc              # Zsh config
 ├── bootstrap.sh        # Setup script
 └── secrets.template    # Template for secrets

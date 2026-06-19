@@ -10,6 +10,7 @@ brew "fnm"        # Node version manager
 brew "fzf"        # fuzzy finder (used by Neovim fzf-lua picker)
 brew "gh"         # GitHub CLI
 brew "git"
+brew "herdr"      # agent multiplexer (tmux for coding agents)
 brew "lazygit"    # terminal git UI (LazyVim <leader>gg)
 brew "neovim"     # editor (LazyVim config in .config/nvim)
 brew "ripgrep"    # rg

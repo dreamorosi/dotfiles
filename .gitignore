@@ -16,3 +16,8 @@ secrets.env
 .config/opencode/package.json
 .config/opencode/package-lock.json
 .config/opencode/bun.lock
+
+# herdr: only config.toml is tracked; logs, session state, and key-reset
+# backups are runtime/machine-local.
+.config/herdr/*
+!.config/herdr/config.toml

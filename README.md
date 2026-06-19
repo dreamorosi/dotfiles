@@ -64,6 +64,7 @@ If you skip secrets during bootstrap, you can configure them later:
 ├── .claude/
 │   └── settings.json   # Claude Code settings (Bedrock token injected)
 ├── .config/
+│   ├── herdr/          # herdr (agent multiplexer) config.toml
 │   ├── nvim/           # Neovim + LazyVim config
 │   └── opencode/       # OpenCode config + skills
 ├── .ssh/

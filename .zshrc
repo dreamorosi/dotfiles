@@ -65,6 +65,15 @@ if command -v fnm &>/dev/null; then
   eval "$(fnm env --shell zsh)"
 fi
 
+# Rust / Cargo
+# macOS: rustup is a keg-only Homebrew formula (shims in its own bin).
+# Linux: rustup's upstream installer puts shims in ~/.cargo/bin.
+if [[ "$(uname -s)" == "Darwin" ]] && [ -d "/opt/homebrew/opt/rustup/bin" ]; then
+  export PATH="/opt/homebrew/opt/rustup/bin:$PATH"
+elif [ -d "$HOME/.cargo/bin" ]; then
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
 # Local binaries
 export PATH="$HOME/.local/bin:$PATH"
 

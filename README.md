@@ -99,6 +99,13 @@ brew bundle dump --file=Brewfile --force
 On Linux, packages are installed individually via the detected package manager
 (apt/dnf/yum/pacman).
 
+## Rust
+
+`bootstrap.sh` installs the stable Rust toolchain via `rustup` (`setup_rust`):
+on macOS `rustup` comes from the Brewfile (keg-only) and its bin is added to
+`PATH` in `.zshrc`; on Linux it's installed with the upstream `rustup` script
+into `~/.cargo`. Manage toolchains with `rustup` and build with `cargo` as usual.
+
 ## SSH config
 
 `~/.ssh/config` is composed via `Include`, so portable hosts coexist with

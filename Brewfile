@@ -14,6 +14,7 @@ brew "herdr"      # agent multiplexer (tmux for coding agents)
 brew "lazygit"    # terminal git UI (LazyVim <leader>gg)
 brew "neovim"     # editor (LazyVim config in .config/nvim)
 brew "ripgrep"    # rg
+brew "rustup"     # Rust toolchain installer (run `rustup default stable`)
 
 # --- Casks ---
 cask "claude-code"

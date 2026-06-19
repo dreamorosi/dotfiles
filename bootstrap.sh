@@ -313,6 +313,38 @@ setup_brew_bundle() {
     brew bundle --file="$brewfile" || warn "brew bundle reported errors (continuing)"
 }
 
+setup_rust() {
+    # Install the stable Rust toolchain via rustup.
+    # macOS: rustup comes from the Brewfile (keg-only); add its bin to PATH
+    #        for this run, then select the stable toolchain.
+    # Linux: install rustup via the upstream installer (~/.cargo).
+    local rustup_bin
+
+    if [[ "$OS" == "macos" ]]; then
+        if has_command brew && brew list rustup &>/dev/null; then
+            rustup_bin="$(brew --prefix rustup)/bin"
+            export PATH="$rustup_bin:$PATH"
+        fi
+        if ! has_command rustup; then
+            warn "rustup not found (expected from Brewfile), skipping Rust setup"
+            return
+        fi
+    else
+        if ! has_command rustup && ! has_command cargo; then
+            info "Installing rustup (Rust toolchain installer)..."
+            curl -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path
+        fi
+        [ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
+        if ! has_command rustup; then
+            warn "rustup install failed, skipping Rust setup"
+            return
+        fi
+    fi
+
+    info "Installing/selecting stable Rust toolchain..."
+    rustup default stable || warn "rustup default stable failed (continuing)"
+}
+
 setup_opencode() {
     if ! has_command opencode; then
         info "Installing OpenCode..."
@@ -533,6 +565,10 @@ main() {
         setup_container_runtime
     fi
     setup_opencode
+
+    # Install the stable Rust toolchain (after brew bundle so macOS rustup
+    # is present)
+    setup_rust
 
     # Symlink dotfiles
     symlink_dotfiles

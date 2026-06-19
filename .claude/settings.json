@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+    "AWS_BEARER_TOKEN_BEDROCK": "",
+    "AWS_REGION": "us-east-1",
+    "CLAUDE_CODE_USE_BEDROCK": "1"
+  },
+  "model": "global.anthropic.claude-opus-4-8",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "auto"
+}

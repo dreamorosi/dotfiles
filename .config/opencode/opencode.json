@@ -1,45 +1,12 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "skill": {
-      "*": "allow"
-    }
-  },
+  "share": "disabled",
+  "plugin": ["opencode-wakatime"],
   "provider": {
     "amazon-bedrock": {
-      "models": {
-        "us.anthropic.claude-sonnet-4-5-20250929-v1:0": {
-          "id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-          "name": "Claude Sonnet 4.5",
-          "attachment": true,
-          "reasoning": true,
-          "temperature": true,
-          "tool_call": true,
-          "release_date": "2025-09-29",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "cost": {
-            "input": 3,
-            "output": 15,
-            "cache_read": 0.3,
-            "cache_write": 3.75
-          },
-          "limit": {
-            "context": 200000,
-            "output": 64000
-          }
-        }
-      },
       "options": {
-        "apiKey": "",
-        "region": "us-east-1"
+        "region": "us-east-2",
+        "apiKey": ""
       }
     }
   }

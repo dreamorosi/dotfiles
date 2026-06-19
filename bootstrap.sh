@@ -290,6 +290,61 @@ setup_container_runtime() {
     fi
 }
 
+setup_brew_bundle() {
+    # macOS only: install everything declared in the Brewfile.
+    if [[ "$OS" != "macos" ]]; then
+        return
+    fi
+    if ! has_command brew; then
+        warn "Homebrew not found, skipping brew bundle"
+        return
+    fi
+
+    local dotfiles_source
+    dotfiles_source="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local brewfile="$dotfiles_source/Brewfile"
+
+    if [[ ! -f "$brewfile" ]]; then
+        warn "Brewfile not found at $brewfile, skipping"
+        return
+    fi
+
+    info "Installing packages from Brewfile (brew bundle)..."
+    brew bundle --file="$brewfile" || warn "brew bundle reported errors (continuing)"
+}
+
+setup_rust() {
+    # Install the stable Rust toolchain via rustup.
+    # macOS: rustup comes from the Brewfile (keg-only); add its bin to PATH
+    #        for this run, then select the stable toolchain.
+    # Linux: install rustup via the upstream installer (~/.cargo).
+    local rustup_bin
+
+    if [[ "$OS" == "macos" ]]; then
+        if has_command brew && brew list rustup &>/dev/null; then
+            rustup_bin="$(brew --prefix rustup)/bin"
+            export PATH="$rustup_bin:$PATH"
+        fi
+        if ! has_command rustup; then
+            warn "rustup not found (expected from Brewfile), skipping Rust setup"
+            return
+        fi
+    else
+        if ! has_command rustup && ! has_command cargo; then
+            info "Installing rustup (Rust toolchain installer)..."
+            curl -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path
+        fi
+        [ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
+        if ! has_command rustup; then
+            warn "rustup install failed, skipping Rust setup"
+            return
+        fi
+    fi
+
+    info "Installing/selecting stable Rust toolchain..."
+    rustup default stable || warn "rustup default stable failed (continuing)"
+}
+
 setup_opencode() {
     if ! has_command opencode; then
         info "Installing OpenCode..."
@@ -313,7 +368,14 @@ setup_opencode_secrets() {
     local config_file="$HOME/.config/opencode/opencode.json"
     if [[ -n "${OPENCODE_BEDROCK_API_KEY:-}" ]] && [[ -f "$config_file" ]]; then
         info "Configuring OpenCode Bedrock API key..."
-        # Use a temp file for sed compatibility across platforms
+        # If the file is a symlink into the dotfiles repo, replace it with a
+        # real copy first so the injected secret never lands in the repo.
+        if [[ -L "$config_file" ]]; then
+            local real
+            real="$(cat "$config_file")"
+            rm "$config_file"
+            printf '%s' "$real" > "$config_file"
+        fi
         if [[ "$OS" == "macos" ]]; then
             sed -i '' "s|\"apiKey\": \"\"|\"apiKey\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
         else
@@ -322,6 +384,89 @@ setup_opencode_secrets() {
     else
         warn "OPENCODE_BEDROCK_API_KEY not set or config missing, skipping..."
     fi
+}
+
+setup_claude_secrets() {
+    # Claude Code reads the Bedrock token from settings.json env. We keep the
+    # token out of the repo (committed value is ""), reusing the same secret
+    # as OpenCode (OPENCODE_BEDROCK_API_KEY).
+    local config_file="$HOME/.claude/settings.json"
+    if [[ -n "${OPENCODE_BEDROCK_API_KEY:-}" ]] && [[ -f "$config_file" ]]; then
+        info "Configuring Claude Code Bedrock token..."
+        # Break the symlink into the repo before injecting the secret.
+        if [[ -L "$config_file" ]]; then
+            local real
+            real="$(cat "$config_file")"
+            rm "$config_file"
+            printf '%s' "$real" > "$config_file"
+        fi
+        if [[ "$OS" == "macos" ]]; then
+            sed -i '' "s|\"AWS_BEARER_TOKEN_BEDROCK\": \"\"|\"AWS_BEARER_TOKEN_BEDROCK\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
+        else
+            sed -i "s|\"AWS_BEARER_TOKEN_BEDROCK\": \"\"|\"AWS_BEARER_TOKEN_BEDROCK\": \"$OPENCODE_BEDROCK_API_KEY\"|" "$config_file"
+        fi
+    else
+        warn "OPENCODE_BEDROCK_API_KEY not set or Claude settings missing, skipping..."
+    fi
+}
+
+setup_signing() {
+    # Git commit signing uses the SSH key at ~/.ssh/github (see .gitconfig
+    # and .ssh/config). The public key + allowed_signers are needed for
+    # signing and local verification.
+    local priv="$HOME/.ssh/github"
+    local pub="$HOME/.ssh/github.pub"
+
+    if [[ ! -f "$priv" ]]; then
+        warn "SSH signing key $priv not found, skipping signing setup"
+        warn "Add your GitHub SSH key to $priv, then re-run, or generate one with:"
+        echo "  ssh-keygen -t ed25519 -C \"dreamorosi@gmail.com\" -f $priv"
+        return
+    fi
+
+    # Derive the public key from the private key if it's missing
+    if [[ ! -f "$pub" ]]; then
+        info "Deriving $pub from private key..."
+        ssh-keygen -y -f "$priv" > "$pub"
+        chmod 644 "$pub"
+    fi
+
+    info "Commit signing configured (key: $pub)"
+    warn "Remember to add this key to GitHub as a SIGNING key for the Verified badge:"
+    echo "  https://github.com/settings/ssh/new (Key type: Signing Key)"
+}
+
+setup_ssh_include() {
+    # Compose ~/.ssh/config from fragments so the dotfile-managed hosts
+    # (~/.ssh/config.d/*.conf, symlinked from this repo) coexist with
+    # machine-managed configs (e.g. Amazon WSSH writes into ~/.ssh/config).
+    local ssh_config="$HOME/.ssh/config"
+    local include_line="Include config.d/*.conf"
+
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+
+    if [[ ! -f "$ssh_config" ]]; then
+        info "Creating $ssh_config with dotfiles Include..."
+        printf '%s\n' "$include_line" > "$ssh_config"
+        chmod 600 "$ssh_config"
+        return
+    fi
+
+    if grep -qF "$include_line" "$ssh_config"; then
+        info "ssh config Include already present, skipping..."
+        return
+    fi
+
+    # Prepend the Include so dotfile hosts win first-match resolution.
+    info "Injecting Include line at top of $ssh_config..."
+    local tmp
+    tmp="$(mktemp)"
+    printf '%s\n\n' "$include_line" > "$tmp"
+    cat "$ssh_config" >> "$tmp"
+    cat "$tmp" > "$ssh_config"
+    rm -f "$tmp"
+    chmod 600 "$ssh_config"
 }
 
 # =============================================================================
@@ -341,8 +486,13 @@ symlink_dotfiles() {
         "secrets.env"
         "README.md"
         "LICENSE"
+        "Brewfile"
         ".git"
         ".gitignore"
+        # ~/.ssh/config is composed via Include (see setup_ssh_include) so it
+        # can coexist with machine-managed configs (e.g. Amazon WSSH). Never
+        # symlink over it.
+        ".ssh/config"
     )
 
     while IFS= read -r file; do
@@ -358,6 +508,15 @@ symlink_dotfiles() {
         done
 
         if [[ "$skip" == true ]]; then
+            continue
+        fi
+
+        # OS-specific fragments: *.macos.conf only on macOS, *.linux.conf only
+        # on Linux. Lets us scope hosts (e.g. home-network services) per OS.
+        if [[ "$relative_path" == *.macos.conf && "$OS" != "macos" ]]; then
+            continue
+        fi
+        if [[ "$relative_path" == *.linux.conf && "$OS" != "linux" ]]; then
             continue
         fi
 
@@ -394,11 +553,22 @@ main() {
 
     # Install dependencies
     setup_zsh
-    setup_fnm
-    setup_neovim
-    setup_gh
-    setup_container_runtime
+    if [[ "$OS" == "macos" ]]; then
+        # On macOS the Brewfile is the source of truth for brew-installable
+        # tools (fnm, gh, neovim, ripgrep, finch, casks, fonts, ...).
+        setup_brew_bundle
+    else
+        # Linux: install tools individually per package manager.
+        setup_fnm
+        setup_neovim
+        setup_gh
+        setup_container_runtime
+    fi
     setup_opencode
+
+    # Install the stable Rust toolchain (after brew bundle so macOS rustup
+    # is present)
+    setup_rust
 
     # Symlink dotfiles
     symlink_dotfiles
@@ -406,6 +576,14 @@ main() {
     # Setup secrets (run after symlinks so config files exist)
     setup_wakatime
     setup_opencode_secrets
+    setup_claude_secrets
+
+    # Setup commit signing (run after symlinks so .gitconfig is in place)
+    setup_signing
+
+    # Compose ~/.ssh/config from Include fragments (after symlinks so the
+    # config.d/ fragments are in place)
+    setup_ssh_include
 
     info "Bootstrap complete!"
     warn "Remember to:"

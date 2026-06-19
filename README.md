@@ -60,13 +60,30 @@ If you skip secrets during bootstrap, you can configure them later:
 │   ├── nvim/           # Neovim + LazyVim config
 │   └── opencode/       # OpenCode config + skills
 ├── .ssh/
-│   ├── config          # SSH host aliases
-│   └── allowed_signers # Public keys trusted for SSH commit signing
+│   ├── config.d/
+│   │   └── 00-dotfiles.conf  # Portable SSH hosts (github.com, etc.)
+│   └── allowed_signers       # Public keys trusted for SSH commit signing
 ├── .gitconfig          # Git config with aliases + SSH commit signing
 ├── .zshrc              # Zsh config
 ├── bootstrap.sh        # Setup script
 └── secrets.template    # Template for secrets
 ```
+
+## SSH config
+
+`~/.ssh/config` is composed via `Include`, so portable hosts coexist with
+machine- or corporate-managed config (e.g. Amazon WSSH writes into
+`~/.ssh/config` directly):
+
+- **`.ssh/config.d/00-dotfiles.conf`** (tracked) — portable hosts shared across
+  all machines, including the `github.com` signing/auth key. Symlinked into
+  `~/.ssh/config.d/`.
+- **`~/.ssh/config.d/99-local.conf`** (NOT tracked) — put machine-specific or
+  corporate hosts here, or leave them in `~/.ssh/config` below the `Include`.
+
+`bootstrap.sh` injects `Include config.d/*.conf` at the top of `~/.ssh/config`
+if it is missing (it never overwrites an existing `~/.ssh/config`). The
+`Include` is placed first so dotfile hosts win SSH's first-match resolution.
 
 ## Supported Platforms
 

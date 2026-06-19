@@ -350,6 +350,39 @@ setup_signing() {
     echo "  https://github.com/settings/ssh/new (Key type: Signing Key)"
 }
 
+setup_ssh_include() {
+    # Compose ~/.ssh/config from fragments so the dotfile-managed hosts
+    # (~/.ssh/config.d/*.conf, symlinked from this repo) coexist with
+    # machine-managed configs (e.g. Amazon WSSH writes into ~/.ssh/config).
+    local ssh_config="$HOME/.ssh/config"
+    local include_line="Include config.d/*.conf"
+
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+
+    if [[ ! -f "$ssh_config" ]]; then
+        info "Creating $ssh_config with dotfiles Include..."
+        printf '%s\n' "$include_line" > "$ssh_config"
+        chmod 600 "$ssh_config"
+        return
+    fi
+
+    if grep -qF "$include_line" "$ssh_config"; then
+        info "ssh config Include already present, skipping..."
+        return
+    fi
+
+    # Prepend the Include so dotfile hosts win first-match resolution.
+    info "Injecting Include line at top of $ssh_config..."
+    local tmp
+    tmp="$(mktemp)"
+    printf '%s\n\n' "$include_line" > "$tmp"
+    cat "$ssh_config" >> "$tmp"
+    cat "$tmp" > "$ssh_config"
+    rm -f "$tmp"
+    chmod 600 "$ssh_config"
+}
+
 # =============================================================================
 # Symlink Dotfiles
 # =============================================================================
@@ -369,6 +402,10 @@ symlink_dotfiles() {
         "LICENSE"
         ".git"
         ".gitignore"
+        # ~/.ssh/config is composed via Include (see setup_ssh_include) so it
+        # can coexist with machine-managed configs (e.g. Amazon WSSH). Never
+        # symlink over it.
+        ".ssh/config"
     )
 
     while IFS= read -r file; do
@@ -435,6 +472,10 @@ main() {
 
     # Setup commit signing (run after symlinks so .gitconfig is in place)
     setup_signing
+
+    # Compose ~/.ssh/config from Include fragments (after symlinks so the
+    # config.d/ fragments are in place)
+    setup_ssh_include
 
     info "Bootstrap complete!"
     warn "Remember to:"

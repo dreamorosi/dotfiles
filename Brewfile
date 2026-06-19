@@ -4,10 +4,13 @@
 
 # --- Formulae ---
 brew "awscli"
+brew "ast-grep"   # structural search engine for grug-far.nvim
+brew "fd"         # fast find; used by Neovim (fzf-lua, LazyVim)
 brew "fnm"        # Node version manager
 brew "fzf"        # fuzzy finder (used by Neovim fzf-lua picker)
 brew "gh"         # GitHub CLI
 brew "git"
+brew "lazygit"    # terminal git UI (LazyVim <leader>gg)
 brew "neovim"     # editor (LazyVim config in .config/nvim)
 brew "ripgrep"    # rg
 

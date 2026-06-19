@@ -73,9 +73,30 @@ If you skip secrets during bootstrap, you can configure them later:
 │   └── allowed_signers       # Public keys trusted for SSH commit signing
 ├── .gitconfig          # Git config with aliases + SSH commit signing
 ├── .zshrc              # Zsh config
+├── Brewfile            # macOS packages (brew bundle)
 ├── bootstrap.sh        # Setup script
 └── secrets.template    # Template for secrets
 ```
+
+## macOS packages
+
+On macOS, brew-installable tools, casks, and fonts are declared in the
+`Brewfile` and installed via `brew bundle`. `bootstrap.sh` runs this
+automatically on macOS (replacing the per-tool installs used on Linux). To
+install or update packages manually:
+
+```sh
+brew bundle --file=Brewfile
+```
+
+To capture newly installed packages back into the Brewfile:
+
+```sh
+brew bundle dump --file=Brewfile --force
+```
+
+On Linux, packages are installed individually via the detected package manager
+(apt/dnf/yum/pacman).
 
 ## SSH config
 

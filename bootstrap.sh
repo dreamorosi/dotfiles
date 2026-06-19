@@ -290,6 +290,29 @@ setup_container_runtime() {
     fi
 }
 
+setup_brew_bundle() {
+    # macOS only: install everything declared in the Brewfile.
+    if [[ "$OS" != "macos" ]]; then
+        return
+    fi
+    if ! has_command brew; then
+        warn "Homebrew not found, skipping brew bundle"
+        return
+    fi
+
+    local dotfiles_source
+    dotfiles_source="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local brewfile="$dotfiles_source/Brewfile"
+
+    if [[ ! -f "$brewfile" ]]; then
+        warn "Brewfile not found at $brewfile, skipping"
+        return
+    fi
+
+    info "Installing packages from Brewfile (brew bundle)..."
+    brew bundle --file="$brewfile" || warn "brew bundle reported errors (continuing)"
+}
+
 setup_opencode() {
     if ! has_command opencode; then
         info "Installing OpenCode..."
@@ -431,6 +454,7 @@ symlink_dotfiles() {
         "secrets.env"
         "README.md"
         "LICENSE"
+        "Brewfile"
         ".git"
         ".gitignore"
         # ~/.ssh/config is composed via Include (see setup_ssh_include) so it
@@ -497,10 +521,17 @@ main() {
 
     # Install dependencies
     setup_zsh
-    setup_fnm
-    setup_neovim
-    setup_gh
-    setup_container_runtime
+    if [[ "$OS" == "macos" ]]; then
+        # On macOS the Brewfile is the source of truth for brew-installable
+        # tools (fnm, gh, neovim, ripgrep, finch, casks, fonts, ...).
+        setup_brew_bundle
+    else
+        # Linux: install tools individually per package manager.
+        setup_fnm
+        setup_neovim
+        setup_gh
+        setup_container_runtime
+    fi
     setup_opencode
 
     # Symlink dotfiles

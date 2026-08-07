@@ -2,9 +2,13 @@
 # Run with:  brew bundle --file=Brewfile
 # bootstrap.sh runs this automatically on macOS.
 
+# --- Taps ---
+tap "dreamorosi/tap"
+
 # --- Formulae ---
 brew "awscli"
 brew "ast-grep"   # structural search engine for grug-far.nvim
+brew "create-cdk-app"  # opinionated AWS CDK TypeScript app generator
 brew "fd"         # fast find; used by Neovim (fzf-lua, LazyVim)
 brew "fnm"        # Node version manager
 brew "fzf"        # fuzzy finder (used by Neovim fzf-lua picker)

@@ -257,6 +257,30 @@ setup_fnm() {
     fi
 }
 
+# Install create-cdk-app (Linux only; macOS gets it from the Brewfile via
+# the dreamorosi/tap formula).
+setup_create_cdk_app() {
+    # This script runs under bash, which never reads .zshrc, so ~/.cargo/bin
+    # may not be on PATH yet even when the binary is already installed.
+    [ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
+
+    if has_command create-cdk-app; then
+        info "create-cdk-app already installed, skipping..."
+        return
+    fi
+
+    info "Installing create-cdk-app..."
+    # CREATE_CDK_APP_NO_MODIFY_PATH stops the upstream installer editing
+    # ~/.zshrc and ~/.zshenv. After symlink_dotfiles those are symlinks into
+    # this repo, so letting it write there would commit machine-local PATH
+    # lines back into git. It is unnecessary regardless: the installer
+    # defaults to the cargo-home layout (~/.cargo/bin), which .zshrc already
+    # puts on PATH for the Rust toolchain.
+    CREATE_CDK_APP_NO_MODIFY_PATH=1 \
+        curl --proto '=https' --tlsv1.2 -LsSf \
+        https://github.com/dreamorosi/create-cdk-app-cli/releases/latest/download/create-cdk-app-installer.sh | sh
+}
+
 setup_neovim() {
     if ! has_command nvim; then
         info "Installing neovim..."
@@ -655,6 +679,7 @@ main() {
         setup_neovim
         setup_gh
         setup_container_runtime
+        setup_create_cdk_app
     fi
     setup_opencode
 

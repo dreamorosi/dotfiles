@@ -328,6 +328,60 @@ setup_create_cdk_app() {
         https://github.com/dreamorosi/create-cdk-app-cli/releases/latest/download/create-cdk-app-installer.sh | sh
 }
 
+# Install herdr on every platform.
+#
+# macOS normally gets it from the Brewfile; the brew branch here only covers
+# a partial run where brew bundle has not executed. On Linux there is no apt
+# package and the Homebrew bottle would mean installing Homebrew, so use the
+# static binary upstream publishes.
+#
+# Note on versions: `herdr --remote <target>` attaches a local client to a
+# herdr server on the far end, so both sides want the same version. This step
+# and Homebrew each track the latest release independently, so a client and
+# server bootstrapped at different times can drift apart.
+setup_herdr() {
+    # This script runs under bash, which never reads .zshrc, so ~/.local/bin
+    # may not be on PATH yet even when herdr is already installed.
+    [ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"
+
+    if has_command herdr; then
+        info "herdr already installed, skipping..."
+        return
+    fi
+
+    if [[ "$OS" == "macos" ]]; then
+        if has_command brew; then
+            info "Installing herdr..."
+            brew install herdr
+        else
+            warn "Homebrew not found, cannot install herdr"
+        fi
+        return
+    fi
+
+    local asset
+    case "$(uname -m)" in
+        x86_64)        asset="herdr-linux-x86_64" ;;
+        aarch64|arm64) asset="herdr-linux-aarch64" ;;
+        *)             warn "No herdr build for $(uname -m), skipping"; return ;;
+    esac
+
+    local dest="$HOME/.local/bin"
+    mkdir -p "$dest"
+    info "Installing herdr ($asset) to $dest..."
+    # Download to a temporary name so a failed transfer cannot leave a
+    # truncated binary sitting at the final path.
+    if curl --proto '=https' --tlsv1.2 -fsSL -o "$dest/herdr.tmp" \
+        "https://github.com/herdrdev/herdr/releases/latest/download/$asset"; then
+        chmod +x "$dest/herdr.tmp"
+        mv -f "$dest/herdr.tmp" "$dest/herdr"
+        info "herdr installed ($("$dest/herdr" --version 2>/dev/null || echo 'version unknown'))"
+    else
+        warn "Failed to download $asset"
+        rm -f "$dest/herdr.tmp"
+    fi
+}
+
 setup_neovim() {
     if ! has_command nvim; then
         info "Installing neovim..."
@@ -733,6 +787,7 @@ main() {
         setup_create_cdk_app
     fi
     setup_opencode
+    setup_herdr
 
     # Install the stable Rust toolchain (after brew bundle so macOS rustup
     # is present)

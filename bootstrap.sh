@@ -137,24 +137,78 @@ setup_zsh() {
 
     # Set zsh as default shell on Linux
     if [[ "$OS" == "linux" ]]; then
-        local current_shell
-        current_shell=$(getent passwd "$USER" | cut -d: -f7)
-        local zsh_path
-        zsh_path=$(which zsh)
-        
-        if [[ "$current_shell" != "$zsh_path" ]]; then
-            info "Setting zsh as default shell..."
-            if has_command chsh; then
-                chsh -s "$zsh_path" || {
-                    warn "Failed to change shell. You may need to run manually:"
-                    echo "  chsh -s $zsh_path"
-                }
-            else
-                warn "chsh not available. Add zsh to /etc/shells and run:"
-                echo "  chsh -s $zsh_path"
-            fi
-        fi
+        set_default_shell_linux
     fi
+}
+
+# Change the login shell to zsh on Linux.
+#
+# Unprivileged `chsh` authenticates the *calling* user through PAM. Cloud
+# images (EC2 ubuntu/ec2-user, Debian admin, ...) ship with a locked password
+# ("!" in /etc/shadow), so that check can never be satisfied -- chsh either
+# fails with "PAM: Authentication failure" or blocks on an unanswerable
+# prompt. Do the change as root instead, and degrade to an exec-into-zsh
+# shim when there is no root at all.
+set_default_shell_linux() {
+    local user zsh_path current_shell
+    user="$(id -un)"
+    zsh_path="$(command -v zsh)" || {
+        warn "zsh not on PATH, skipping shell change"
+        return
+    }
+
+    current_shell="$(getent passwd "$user" 2>/dev/null | cut -d: -f7)"
+    if [[ "$current_shell" == "$zsh_path" ]]; then
+        info "zsh is already the default shell, skipping..."
+        return
+    fi
+
+    if sudo -n true 2>/dev/null; then
+        # chsh rejects a shell that isn't listed in /etc/shells.
+        if ! grep -qxF "$zsh_path" /etc/shells 2>/dev/null; then
+            info "Adding $zsh_path to /etc/shells..."
+            printf '%s\n' "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+        fi
+
+        info "Setting zsh as default shell (via sudo)..."
+        if sudo chsh -s "$zsh_path" "$user" 2>/dev/null \
+            || sudo usermod -s "$zsh_path" "$user" 2>/dev/null; then
+            info "Default shell set to $zsh_path"
+            return
+        fi
+        warn "Could not change the login shell via sudo"
+    else
+        warn "No passwordless sudo available"
+    fi
+
+    warn "Falling back to exec-into-zsh from ~/.bashrc"
+    install_zsh_exec_shim "$zsh_path"
+}
+
+# Last resort when the login shell cannot be changed: have interactive bash
+# hand over to zsh. Guarded on $- so non-interactive bash is untouched --
+# exec'ing unconditionally breaks `ssh <host> <cmd>`, scp, sftp and rsync.
+# zsh never reads .bashrc, so there is no loop.
+install_zsh_exec_shim() {
+    local zsh_path="$1"
+    local bashrc="$HOME/.bashrc"
+    local marker="# >>> dotfiles: hand over to zsh >>>"
+
+    if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc"; then
+        info "zsh exec shim already present in ~/.bashrc, skipping..."
+        return
+    fi
+
+    info "Appending zsh exec shim to ~/.bashrc..."
+    cat >> "$bashrc" <<EOF
+
+$marker
+# Added by bootstrap.sh: the login shell could not be changed.
+if [[ \$- == *i* ]] && [[ -z "\${ZSH_VERSION:-}" ]] && [[ -x "$zsh_path" ]]; then
+    exec "$zsh_path" -l
+fi
+# <<< dotfiles: hand over to zsh <<<
+EOF
 }
 
 setup_fnm() {

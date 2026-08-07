@@ -113,6 +113,43 @@ check_secrets() {
 # Setup Functions
 # =============================================================================
 
+# Ensure the packages that downstream installers hard-require are present.
+#
+# The fnm and OpenCode install scripts both abort outright when `unzip` is
+# missing -- fnm prints "Not installing fnm due to missing dependencies."
+# and minimal cloud images (e.g. Ubuntu Server) do not ship unzip. curl and
+# git are needed by setup_zsh for the oh-my-zsh installer and the pure
+# prompt clone.
+#
+# Linux only: macOS ships curl, unzip and tar, and git arrives with the
+# Command Line Tools, so there is nothing to do there.
+setup_base_packages() {
+    if [[ "$OS" != "linux" ]]; then
+        return
+    fi
+
+    local -a missing=()
+    local dep
+    for dep in curl git unzip; do
+        has_command "$dep" || missing+=("$dep")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        info "Base dependencies already present, skipping..."
+        return
+    fi
+
+    info "Installing missing base dependencies: ${missing[*]}"
+    # Package lists on a freshly booted image can be stale enough that
+    # apt-get install fails to locate the package.
+    if [[ "$PKG_MANAGER" == "apt" ]]; then
+        sudo apt-get update
+    fi
+    for dep in "${missing[@]}"; do
+        install_package "$dep"
+    done
+}
+
 setup_zsh() {
     if ! has_command zsh; then
         install_package zsh
@@ -606,6 +643,7 @@ main() {
     check_secrets
 
     # Install dependencies
+    setup_base_packages
     setup_zsh
     if [[ "$OS" == "macos" ]]; then
         # On macOS the Brewfile is the source of truth for brew-installable

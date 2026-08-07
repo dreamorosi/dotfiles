@@ -113,6 +113,53 @@ check_secrets() {
 # Setup Functions
 # =============================================================================
 
+# Install the xterm-ghostty terminfo entry.
+#
+# Ghostty sets TERM=xterm-ghostty and ssh forwards it, but the entry ships
+# in neither Ubuntu's ncurses (6.4) nor ncurses-term, and it is not in the
+# ncurses upstream snapshot either. Without it ncurses cannot initialise, so
+# remote sessions fail with "Error opening terminal: xterm-ghostty" and zsh
+# loses backspace (kbs) and completion redraw (cuu1/el).
+#
+# The definition is vendored at terminfo/xterm-ghostty.terminfo, generated
+# on macOS with `infocmp -x xterm-ghostty` from Ghostty.app. Regenerate it
+# with that command if Ghostty changes its capabilities.
+#
+# Linux only: on macOS Ghostty.app supplies the entry via $TERMINFO.
+setup_terminfo() {
+    if [[ "$OS" != "linux" ]]; then
+        return
+    fi
+
+    if infocmp xterm-ghostty >/dev/null 2>&1; then
+        info "xterm-ghostty terminfo already available, skipping..."
+        return
+    fi
+
+    if ! has_command tic; then
+        warn "tic not found (install ncurses-bin); skipping terminfo setup"
+        return
+    fi
+
+    local dotfiles_source
+    dotfiles_source="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local src="$dotfiles_source/terminfo/xterm-ghostty.terminfo"
+
+    if [[ ! -f "$src" ]]; then
+        warn "Vendored terminfo missing at $src, skipping"
+        return
+    fi
+
+    info "Compiling xterm-ghostty terminfo into ~/.terminfo..."
+    # tic emits a harmless warning about the description field on older
+    # versions; it still exits 0 and writes the entry.
+    if tic -x "$src"; then
+        info "xterm-ghostty terminfo installed"
+    else
+        warn "tic failed to compile $src"
+    fi
+}
+
 # Ensure the packages that downstream installers hard-require are present.
 #
 # The fnm and OpenCode install scripts both abort outright when `unzip` is
@@ -602,6 +649,9 @@ symlink_dotfiles() {
         "README.md"
         "LICENSE"
         "Brewfile"
+        # Vendored terminfo source; compiled into ~/.terminfo by
+        # setup_terminfo rather than symlinked into $HOME.
+        "terminfo"
         ".git"
         ".gitignore"
         # ~/.ssh/config is composed via Include (see setup_ssh_include) so it
@@ -668,6 +718,7 @@ main() {
 
     # Install dependencies
     setup_base_packages
+    setup_terminfo
     setup_zsh
     if [[ "$OS" == "macos" ]]; then
         # On macOS the Brewfile is the source of truth for brew-installable
